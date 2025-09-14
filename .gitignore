@@ -1,0 +1,14 @@
+# VSCode settings (if you don't want to share)
+.vscode/settings.json
+
+# macOS
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+
+# Node modules (if you ever add them)
+node_modules/
+
+.vscode

@@ -1,0 +1,79 @@
+{
+  "name": "c-token-analyzer",
+  "displayName": "C Token Analyzer",
+  "description": "Live C token analysis with definitions from your comprehensive C dictionary",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Language Packs"
+  ],
+  "activationEvents": [
+    "onLanguage:c",
+    "onLanguage:cpp"
+  ],
+  "main": "./extension.js",
+  "files": [
+    "extension.js",
+    "built-in-definitions.js",
+    "c-dictionary.js",
+    "README.md"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "c-token-analyzer.showTokenInfo",
+        "title": "Show Token Information"
+      },
+      {
+        "command": "c-token-analyzer.analyzeFile",
+        "title": "Analyze Current File"
+      },
+      {
+        "command": "c-token-analyzer.showDictionary",
+        "title": "Show C Dictionary"
+      },
+      {
+        "command": "c-token-analyzer.showTokenDefinition",
+        "title": "Show Token Definition"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "editorLangId == c",
+          "command": "c-token-analyzer.showTokenInfo",
+          "group": "navigation"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "c-token-analyzer",
+          "name": "C Token Analysis"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "C Token Analyzer",
+      "properties": {
+        "c-token-analyzer.enableHover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable hover information for C tokens"
+        },
+        "c-token-analyzer.showPanel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the token analysis panel"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "echo 'Extension ready'"
+  }
+}
