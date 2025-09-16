@@ -4302,18 +4302,28 @@ long double v = erfl(1.0L); // ≈ 0.842701L
 ```
 ---
 
-<a id="id-errno"></a>
-### `errno`
-
-_Description:_
-
----
-
 <a id="id-exit"></a>
 ### `exit`
 
 _Description:_
+---
+Terminates the program immediately with the specified exit status. Calls all registered `atexit` functions and flushes all streams before termination.
 
+Example:
+
+```c
+#include <stdlib.h>
+#include <stdio.h>
+
+int main(void) {
+    printf("Program starting\n");
+    
+    // Exit with success status
+    exit(0);  // This line will never be reached
+    printf("This will never print\n");
+    return 0;
+}
+```
 ---
 
 <a id="id-exp"></a>
@@ -4518,6 +4528,24 @@ int rc = fclose(fp); // 0 on success
 _Description:_
 ---
 Clears the specified floating‑point exception flags given by the bitmask (e.g., `FE_DIVBYZERO`, `FE_INVALID`). Returns 0 on success, nonzero on failure.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    // Clear all floating-point exceptions
+    if (feclearexcept(FE_ALL_EXCEPT) == 0) {
+        printf("All exceptions cleared\n");
+    }
+    
+    // Clear specific exceptions
+    feclearexcept(FE_DIVBYZERO | FE_INVALID);
+    return 0;
+}
+```
 ---
 
 <a id="id-fegetenv"></a>
@@ -4526,6 +4554,26 @@ Clears the specified floating‑point exception flags given by the bitmask (e.g.
 _Description:_
 ---
 Stores the current floating‑point environment (rounding mode and exception flags) into a `fenv_t` object. Returns 0 on success.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    fenv_t env;
+    
+    // Save current floating-point environment
+    if (fegetenv(&env) == 0) {
+        printf("Environment saved successfully\n");
+        // ... modify floating-point settings ...
+        // Restore later with fesetenv(&env)
+    }
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-fegetexceptflag"></a>
@@ -4534,6 +4582,26 @@ Stores the current floating‑point environment (rounding mode and exception fla
 _Description:_
 ---
 Saves the state of the specified floating‑point exception flags into an `fexcept_t` object for later restoration. Returns 0 on success.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    fexcept_t flags;
+    
+    // Save current exception flags
+    if (fegetexceptflag(&flags, FE_ALL_EXCEPT) == 0) {
+        printf("Exception flags saved\n");
+        // ... perform operations that might raise exceptions ...
+        // Restore flags later with fesetexceptflag(&flags, FE_ALL_EXCEPT)
+    }
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-fegetround"></a>
@@ -4542,6 +4610,31 @@ Saves the state of the specified floating‑point exception flags into an `fexce
 _Description:_
 ---
 Gets the current rounding direction, returning one of the macros such as `FE_TONEAREST`, `FE_DOWNWARD`, `FE_UPWARD`, or `FE_TOWARDZERO`.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    int rounding = fegetround();
+    
+    if (rounding >= 0) {
+        switch (rounding) {
+            case FE_TONEAREST:  printf("Rounding: to nearest\n"); break;
+            case FE_UPWARD:     printf("Rounding: upward\n"); break;
+            case FE_DOWNWARD:   printf("Rounding: downward\n"); break;
+            case FE_TOWARDZERO: printf("Rounding: toward zero\n"); break;
+            default:            printf("Rounding: unknown\n"); break;
+        }
+    } else {
+        printf("Error getting rounding mode\n");
+    }
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-feholdexcept"></a>
@@ -4550,6 +4643,29 @@ Gets the current rounding direction, returning one of the macros such as `FE_TON
 _Description:_
 ---
 Saves the current floating‑point environment to a `fenv_t` object, then clears all exception flags and sets a non‑stop mode. Returns 0 on success.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    fenv_t env;
+    
+    // Save environment and clear exceptions
+    if (feholdexcept(&env) == 0) {
+        printf("Environment saved, exceptions cleared\n");
+        // Perform operations that might raise exceptions
+        // without stopping execution
+        // ... floating-point operations ...
+        
+        // Restore environment later with fesetenv(&env)
+    }
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-fenv_t"></a>
@@ -4558,6 +4674,32 @@ Saves the current floating‑point environment to a `fenv_t` object, then clears
 _Description:_
 ---
 Type that represents the entire floating‑point environment (rounding mode and exception flags) used by `<fenv.h>` functions.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    fenv_t env1, env2;
+    
+    // Save current environment
+    fegetenv(&env1);
+    
+    // Modify floating-point settings
+    fesetround(FE_UPWARD);
+    
+    // Save modified environment
+    fegetenv(&env2);
+    
+    // Restore original environment
+    fesetenv(&env1);
+    
+    printf("Environment types used for saving/restoring\n");
+    return 0;
+}
+```
 ---
 
 <a id="id-feraiseexcept"></a>
@@ -4566,6 +4708,31 @@ Type that represents the entire floating‑point environment (rounding mode and 
 _Description:_
 ---
 Raises (sets) the specified floating‑point exception flags. Returns 0 if all requested exceptions were successfully raised.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    // Raise specific floating-point exceptions
+    if (feraiseexcept(FE_DIVBYZERO | FE_INVALID) == 0) {
+        printf("Exceptions raised successfully\n");
+        
+        // Check which exceptions are now set
+        int exceptions = fetestexcept(FE_ALL_EXCEPT);
+        if (exceptions & FE_DIVBYZERO) {
+            printf("Division by zero exception is set\n");
+        }
+        if (exceptions & FE_INVALID) {
+            printf("Invalid operation exception is set\n");
+        }
+    }
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-fetestexcept"></a>
@@ -4574,6 +4741,33 @@ Raises (sets) the specified floating‑point exception flags. Returns 0 if all r
 _Description:_
 ---
 Tests which of the specified floating‑point exceptions are currently set and returns a bitwise OR of those flags.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    // Test for specific exceptions
+    int exceptions = fetestexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
+    
+    if (exceptions & FE_DIVBYZERO) {
+        printf("Division by zero exception occurred\n");
+    }
+    if (exceptions & FE_INVALID) {
+        printf("Invalid operation exception occurred\n");
+    }
+    if (exceptions & FE_OVERFLOW) {
+        printf("Overflow exception occurred\n");
+    }
+    if (exceptions == 0) {
+        printf("No exceptions occurred\n");
+    }
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-feof"></a>
@@ -4582,13 +4776,34 @@ Tests which of the specified floating‑point exceptions are currently set and r
 _Description:_
 ---
 Tests the end‑of‑file indicator for a stream. Returns nonzero if EOF has been reached; otherwise returns 0.
----
 
-<a id="id-feraiseexcept"></a>
-### `feraiseexcept`
+Example:
 
-_Description:_
+```c
+#include <stdio.h>
 
+int main(void) {
+    FILE *fp = fopen("example.txt", "r");
+    if (fp == NULL) {
+        perror("Error opening file");
+        return 1;
+    }
+    
+    int c;
+    while ((c = fgetc(fp)) != EOF) {
+        putchar(c);
+    }
+    
+    if (feof(fp)) {
+        printf("\nEnd of file reached\n");
+    } else if (ferror(fp)) {
+        printf("\nError reading file\n");
+    }
+    
+    fclose(fp);
+    return 0;
+}
+```
 ---
 
 <a id="id-ferror"></a>
@@ -4597,6 +4812,35 @@ _Description:_
 _Description:_
 ---
 Tests the error indicator for a stream. Returns nonzero if a read/write error has occurred on the stream; otherwise returns 0.
+
+Example:
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    FILE *fp = fopen("nonexistent.txt", "r");
+    if (fp == NULL) {
+        perror("Error opening file");
+        return 1;
+    }
+    
+    // Try to read from the file
+    int c = fgetc(fp);
+    
+    if (ferror(fp)) {
+        printf("Error occurred while reading file\n");
+        clearerr(fp);  // Clear the error indicator
+    } else if (feof(fp)) {
+        printf("End of file reached\n");
+    } else {
+        printf("Read character: %c\n", c);
+    }
+    
+    fclose(fp);
+    return 0;
+}
+```
 ---
 
 <a id="id-fesetenv"></a>
@@ -4605,6 +4849,31 @@ Tests the error indicator for a stream. Returns nonzero if a read/write error ha
 _Description:_
 ---
 Installs the floating‑point environment from a `fenv_t` object, replacing the current environment. Returns 0 on success.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    fenv_t env;
+    
+    // Save current environment
+    fegetenv(&env);
+    
+    // Modify floating-point settings
+    fesetround(FE_UPWARD);
+    printf("Rounding mode changed\n");
+    
+    // Restore original environment
+    if (fesetenv(&env) == 0) {
+        printf("Environment restored successfully\n");
+    }
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-fesetexceptflag"></a>
@@ -4613,6 +4882,30 @@ Installs the floating‑point environment from a `fenv_t` object, replacing the 
 _Description:_
 ---
 Sets the state of the specified floating‑point exception flags from an `fexcept_t` object without raising exceptions. Returns 0 on success.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    fexcept_t flags;
+    
+    // Save current exception flags
+    fegetexceptflag(&flags, FE_ALL_EXCEPT);
+    
+    // Clear all exceptions
+    feclearexcept(FE_ALL_EXCEPT);
+    
+    // Restore the saved flags
+    if (fesetexceptflag(&flags, FE_ALL_EXCEPT) == 0) {
+        printf("Exception flags restored successfully\n");
+    }
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-fesetround"></a>
@@ -4621,6 +4914,30 @@ Sets the state of the specified floating‑point exception flags from an `fexcep
 _Description:_
 ---
 Sets the current rounding direction to the given macro (e.g., `FE_TONEAREST`, `FE_UPWARD`). Returns 0 on success, nonzero on failure.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    // Set rounding to upward
+    if (fesetround(FE_UPWARD) == 0) {
+        printf("Rounding mode set to upward\n");
+        
+        // Test with a calculation
+        double result = 1.0 / 3.0;
+        printf("1.0/3.0 with upward rounding: %.2f\n", result);
+    }
+    
+    // Set rounding to nearest
+    fesetround(FE_TONEAREST);
+    printf("Rounding mode set to nearest\n");
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-feupdateenv"></a>
@@ -4629,6 +4946,30 @@ Sets the current rounding direction to the given macro (e.g., `FE_TONEAREST`, `F
 _Description:_
 ---
 Restores the floating‑point environment from a `fenv_t` object and then raises any exceptions that were set prior to the call. Returns 0 on success.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    fenv_t env;
+    
+    // Save current environment
+    fegetenv(&env);
+    
+    // Raise some exceptions
+    feraiseexcept(FE_DIVBYZERO | FE_INVALID);
+    
+    // Restore environment and raise exceptions
+    if (feupdateenv(&env) == 0) {
+        printf("Environment updated and exceptions raised\n");
+    }
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-fexcept_t"></a>
@@ -4637,6 +4978,32 @@ Restores the floating‑point environment from a `fenv_t` object and then raises
 _Description:_
 ---
 Type that holds the state of the floating‑point exception flags, used with `fegetexceptflag`/`fesetexceptflag`.
+
+Example:
+
+```c
+#include <fenv.h>
+#include <stdio.h>
+
+int main(void) {
+    fexcept_t flags1, flags2;
+    
+    // Save current exception flags
+    fegetexceptflag(&flags1, FE_ALL_EXCEPT);
+    
+    // Clear all exceptions
+    feclearexcept(FE_ALL_EXCEPT);
+    
+    // Save the cleared state
+    fegetexceptflag(&flags2, FE_ALL_EXCEPT);
+    
+    // Restore original flags
+    fesetexceptflag(&flags1, FE_ALL_EXCEPT);
+    
+    printf("Exception flag types used for saving/restoring\n");
+    return 0;
+}
+```
 ---
 
 <a id="id-fflush"></a>
@@ -4645,6 +5012,34 @@ Type that holds the state of the floating‑point exception flags, used with `fe
 _Description:_
 ---
 Flushes any buffered output for a stream to its underlying file. If `stream` is `NULL`, all open output streams are flushed. Returns 0 on success, `EOF` on error.
+
+Example:
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    FILE *fp = fopen("output.txt", "w");
+    if (fp == NULL) {
+        perror("Error opening file");
+        return 1;
+    }
+    
+    // Write some data
+    fprintf(fp, "This is buffered output\n");
+    printf("Data written to buffer\n");
+    
+    // Force flush to disk
+    if (fflush(fp) == 0) {
+        printf("Buffer flushed successfully\n");
+    } else {
+        printf("Error flushing buffer\n");
+    }
+    
+    fclose(fp);
+    return 0;
+}
+```
 ---
 
 <a id="id-fgetc"></a>
@@ -4706,7 +5101,14 @@ fclose(fp);
 ### `fiprintf`
 
 _Description:_
+---
+[DESCRIPTION_PLACEHOLDER]
 
+Example:
+
+```c
+[EXAMPLE_PLACEHOLDER]
+```
 ---
 
 <a id="id-floor"></a>
@@ -5024,7 +5426,35 @@ fclose(fp);
 ### `free`
 
 _Description:_
+---
+Deallocates memory previously allocated by `malloc`, `calloc`, or `realloc`. The pointer becomes invalid after calling `free`. Calling `free` on a null pointer is safe and does nothing.
 
+Example:
+
+```c
+#include <stdlib.h>
+#include <stdio.h>
+
+int main(void) {
+    // Allocate memory
+    int *arr = malloc(10 * sizeof(int));
+    if (arr == NULL) {
+        printf("Memory allocation failed\n");
+        return 1;
+    }
+    
+    // Use the memory
+    for (int i = 0; i < 10; i++) {
+        arr[i] = i * i;
+    }
+    
+    // Free the memory when done
+    free(arr);
+    arr = NULL;  // Good practice to avoid dangling pointer
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-freopen"></a>
@@ -5280,6 +5710,27 @@ const char *p = getenv("HOME"); // e.g., "/Users/alice" or NULL
 _Description:_
 ---
 Unsafe input function removed in C11; do not use. Use `fgets` instead.
+
+Example:
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    char buffer[100];
+    
+    // DON'T USE gets() - it's unsafe and removed in C11
+    // gets(buffer);  // This would cause a compiler error in C11
+    
+    // Instead, use fgets() for safe input
+    printf("Enter a line: ");
+    if (fgets(buffer, sizeof(buffer), stdin) != NULL) {
+        printf("You entered: %s", buffer);
+    }
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-gmtime"></a>
@@ -5497,7 +5948,27 @@ int r = isdigit('5'); // r != 0
 ### `isfinite`
 
 _Description:_
+---
+Returns nonzero if the argument is a finite value (not infinite and not NaN). Part of the floating-point classification functions in `<math.h>`.
 
+Example:
+
+```c
+#include <math.h>
+#include <stdio.h>
+
+int main(void) {
+    double x = 3.14;
+    double y = 1.0 / 0.0;  // infinity
+    double z = 0.0 / 0.0;  // NaN
+    
+    printf("isfinite(3.14): %d\n", isfinite(x));  // 1
+    printf("isfinite(inf): %d\n", isfinite(y));    // 0
+    printf("isfinite(NaN): %d\n", isfinite(z));    // 0
+    
+    return 0;
+}
+```
 ---
 
 <a id="id-isgraph"></a>
@@ -5519,42 +5990,84 @@ int r = isgraph('#'); // r != 0
 ### `isgreater`
 
 _Description:_
+---
+[DESCRIPTION_PLACEHOLDER]
 
+Example:
+
+```c
+[EXAMPLE_PLACEHOLDER]
+```
 ---
 
 <a id="id-isgreaterequal"></a>
 ### `isgreaterequal`
 
 _Description:_
+---
+[DESCRIPTION_PLACEHOLDER]
 
+Example:
+
+```c
+[EXAMPLE_PLACEHOLDER]
+```
 ---
 
 <a id="id-isinf"></a>
 ### `isinf`
 
 _Description:_
+---
+[DESCRIPTION_PLACEHOLDER]
 
+Example:
+
+```c
+[EXAMPLE_PLACEHOLDER]
+```
 ---
 
 <a id="id-isless"></a>
 ### `isless`
 
 _Description:_
+---
+[DESCRIPTION_PLACEHOLDER]
 
+Example:
+
+```c
+[EXAMPLE_PLACEHOLDER]
+```
 ---
 
 <a id="id-islessequal"></a>
 ### `islessequal`
 
 _Description:_
+---
+[DESCRIPTION_PLACEHOLDER]
 
+Example:
+
+```c
+[EXAMPLE_PLACEHOLDER]
+```
 ---
 
 <a id="id-islessgreater"></a>
 ### `islessgreater`
 
 _Description:_
+---
+[DESCRIPTION_PLACEHOLDER]
 
+Example:
+
+```c
+[EXAMPLE_PLACEHOLDER]
+```
 ---
 
 <a id="id-islower"></a>
@@ -5576,14 +6089,28 @@ int r = islower('g'); // r != 0
 ### `isnan`
 
 _Description:_
+---
+[DESCRIPTION_PLACEHOLDER]
 
+Example:
+
+```c
+[EXAMPLE_PLACEHOLDER]
+```
 ---
 
 <a id="id-isnormal"></a>
 ### `isnormal`
 
 _Description:_
+---
+[DESCRIPTION_PLACEHOLDER]
 
+Example:
+
+```c
+[EXAMPLE_PLACEHOLDER]
+```
 ---
 
 <a id="id-isprint"></a>
@@ -5635,7 +6162,14 @@ int r = isspace('\n'); // r != 0
 ### `isunordered`
 
 _Description:_
+---
+[DESCRIPTION_PLACEHOLDER]
 
+Example:
+
+```c
+[EXAMPLE_PLACEHOLDER]
+```
 ---
 
 <a id="id-isupper"></a>
@@ -5857,7 +6391,6 @@ int r2 = iswspace(L'A');  // r2 == 0
 ### `iswupper`
 
 _Description:_
-
 ---
 Returns nonzero if the wide character is an uppercase letter in the current
 locale.
@@ -10965,7 +11498,7 @@ printf("%" PRIx64 "\n", v); // prints: ffffffffffffffff
 ```
 ---
 
-<a id="id-prix8"></a>
+<a id="id-prix8-upper"></a>
 ### `PRIX8`
 
 _Description:_
@@ -10982,7 +11515,7 @@ printf("%" PRIX8 "\n", v); // prints: FF
 ```
 ---
 
-<a id="id-prix16"></a>
+<a id="id-prix16-upper"></a>
 ### `PRIX16`
 
 _Description:_
@@ -10999,7 +11532,7 @@ printf("%" PRIX16 "\n", v); // prints: BEEF
 ```
 ---
 
-<a id="id-prix32"></a>
+<a id="id-prix32-upper"></a>
 ### `PRIX32`
 
 _Description:_
@@ -11016,7 +11549,7 @@ printf("%" PRIX32 "\n", v); // prints: 12345678 (uppercase letters if any)
 ```
 ---
 
-<a id="id-prix64"></a>
+<a id="id-prix64-upper"></a>
 ### `PRIX64`
 
 _Description:_
@@ -11812,7 +12345,7 @@ float e = FLT_EPSILON; // ~1.192093e-07
 ```
 ---
 
-<a id="id-dbl_true_min"></a>
+<a id="id-dbl-true-min"></a>
 ### `DBL_TRUE_MIN`
 
 _Description:_
@@ -11828,7 +12361,7 @@ double x = DBL_TRUE_MIN; // ~4.940656e-324
 ```
 ---
 
-<a id="id-dbl_min"></a>
+<a id="id-dbl-min"></a>
 ### `DBL_MIN`
 
 _Description:_
@@ -11844,7 +12377,7 @@ double x = DBL_MIN; // ~2.225074e-308
 ```
 ---
 
-<a id="id-dbl_max"></a>
+<a id="id-dbl-max"></a>
 ### `DBL_MAX`
 
 _Description:_
@@ -11860,7 +12393,7 @@ double x = DBL_MAX; // ~1.797693e+308
 ```
 ---
 
-<a id="id-dbl_epsilon"></a>
+<a id="id-dbl-epsilon"></a>
 ### `DBL_EPSILON`
 
 _Description:_
@@ -11877,7 +12410,7 @@ double e = DBL_EPSILON; // ~2.220446e-16
 ```
 ---
 
-<a id="id-ldbl_true_min"></a>
+<a id="id-ldbl-true-min"></a>
 ### `LDBL_TRUE_MIN`
 
 _Description:_
@@ -11893,7 +12426,7 @@ long double x = LDBL_TRUE_MIN;
 ```
 ---
 
-<a id="id-ldbl_min"></a>
+<a id="id-ldbl-min"></a>
 ### `LDBL_MIN`
 
 _Description:_
@@ -11909,7 +12442,7 @@ long double x = LDBL_MIN;
 ```
 ---
 
-<a id="id-ldbl_max"></a>
+<a id="id-ldbl-max"></a>
 ### `LDBL_MAX`
 
 _Description:_
@@ -11925,7 +12458,7 @@ long double x = LDBL_MAX;
 ```
 ---
 
-<a id="id-ldbl_epsilon"></a>
+<a id="id-ldbl-epsilon"></a>
 ### `LDBL_EPSILON`
 
 _Description:_

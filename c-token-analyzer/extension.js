@@ -84,43 +84,50 @@ class CTokenAnalyzer {
     }
 
     loadTokenDefinitions() {
-        // Load all 650+ token definitions from embedded C_Dictionary.md
+        // Load token definitions from embedded C dictionary
         console.log(`Loading ${BUILT_IN_DEFINITIONS.length} token definitions from embedded dictionary...`);
-        
         for (const definition of BUILT_IN_DEFINITIONS) {
             this.tokenDefinitions.set(definition.token, definition);
+            // Debug specific tokens
+            if (definition.token === 'iswupper' || definition.token === 'enum') {
+                console.log(`DEBUG: Loaded token "${definition.token}" - Type: ${definition.type}`);
+            }
         }
-        
         console.log(`Loaded ${this.tokenDefinitions.size} token definitions`);
+        
+        // Debug: Check if specific tokens are in the map
+        console.log(`DEBUG: enum in map: ${this.tokenDefinitions.has('enum')}`);
+        console.log(`DEBUG: iswupper in map: ${this.tokenDefinitions.has('iswupper')}`);
     }
 
     determineTokenType(token) {
-        // Use the type from our embedded definitions
         const definition = this.tokenDefinitions.get(token);
         return definition ? definition.type : 'identifier';
     }
 
     async provideHover(document, position) {
         const wordRange = document.getWordRangeAtPosition(position);
-        if (!wordRange) {
-            return undefined;
-        }
-
+        if (!wordRange) return undefined;
         const token = document.getText(wordRange);
         const definition = this.tokenDefinitions.get(token);
-
+        
+        // Debug logging
+        if (token === 'iswupper' || token === 'enum') {
+            console.log(`DEBUG: Token "${token}" - Definition found: ${!!definition}`);
+            if (definition) {
+                console.log(`DEBUG: Token "${token}" - Type: ${definition.type}, Description: ${definition.description.substring(0, 50)}...`);
+            }
+        }
+        
         if (definition) {
             const hoverText = new vscode.MarkdownString();
             hoverText.appendMarkdown(`**${definition.token}** - ${definition.type}\n\n`);
             hoverText.appendMarkdown(`${definition.description}\n\n`);
-            
             if (definition.example) {
                 hoverText.appendMarkdown(`**Example:**\n\`\`\`c\n${definition.example}\n\`\`\``);
             }
-
             return new vscode.Hover(hoverText, wordRange);
         }
-
         return undefined;
     }
 
@@ -130,23 +137,16 @@ class CTokenAnalyzer {
             vscode.window.showInformationMessage('Please open a C file first.');
             return;
         }
-
         const position = editor.selection.active;
         const wordRange = editor.document.getWordRangeAtPosition(position);
-        
         if (!wordRange) {
             vscode.window.showInformationMessage('No token at cursor position.');
             return;
         }
-
         const token = editor.document.getText(wordRange);
         const definition = this.tokenDefinitions.get(token);
-
         if (definition) {
-            vscode.window.showInformationMessage(
-                `${definition.token}: ${definition.description}`,
-                { modal: false }
-            );
+            vscode.window.showInformationMessage(`${definition.token}: ${definition.description}`, { modal: false });
         } else {
             vscode.window.showInformationMessage(`Token "${token}" not found in dictionary.`);
         }
@@ -158,42 +158,31 @@ class CTokenAnalyzer {
             vscode.window.showInformationMessage('Please open a C file first.');
             return;
         }
-
         const document = editor.document;
         const tokens = this.tokenizeDocument(document);
-        
-        // Update the tree view
         this.tokenAnalysisProvider.updateTokens(tokens);
-        
         vscode.window.showInformationMessage(`Analyzed ${tokens.length} tokens in current file.`);
-        
-        // Show token summary
         const tokenCounts = {};
         tokens.forEach(token => {
             tokenCounts[token.type] = (tokenCounts[token.type] || 0) + 1;
         });
-        
         let summary = 'Token Summary:\n';
         for (const [type, count] of Object.entries(tokenCounts)) {
             summary += `${type}: ${count}\n`;
         }
-        
         vscode.window.showInformationMessage(summary);
     }
 
     tokenizeDocument(document) {
         const tokens = [];
         const text = document.getText();
-
-        // Simple tokenizer - matches words and operators
-        const tokenRegex = /\w+|[^\w\s]/g;
+        // Simple tokenizer: words and operators. C-specific tweaks: include underscores in identifiers
+        const tokenRegex = /[A-Za-z_][A-Za-z_0-9]*|[^\w\s]/g;
         let match;
-
         while ((match = tokenRegex.exec(text)) !== null) {
             const token = match[0];
             const startPos = document.positionAt(match.index);
             const endPos = document.positionAt(match.index + token.length);
-            
             tokens.push({
                 token,
                 type: this.determineTokenType(token),
@@ -202,21 +191,16 @@ class CTokenAnalyzer {
                 range: new vscode.Range(startPos, endPos)
             });
         }
-
         return tokens;
     }
 
     onDocumentChange(event) {
         if (event.document.languageId === 'c') {
-            // Debounce the analysis
             setTimeout(() => {
-                // Update status bar and tree view
                 const editor = vscode.window.activeTextEditor;
                 if (editor && editor.document === event.document) {
                     const tokens = this.tokenizeDocument(event.document);
                     this.statusBarItem.text = `$(symbol-keyword) ${tokens.length} tokens`;
-                    
-                    // Update tree view
                     this.tokenAnalysisProvider.updateTokens(tokens);
                 }
             }, 500);
@@ -227,11 +211,9 @@ class CTokenAnalyzer {
         if (event.textEditor.document.languageId === 'c') {
             const position = event.selections[0].active;
             const wordRange = event.textEditor.document.getWordRangeAtPosition(position);
-            
             if (wordRange) {
                 const token = event.textEditor.document.getText(wordRange);
                 const definition = this.tokenDefinitions.get(token);
-                
                 if (definition) {
                     this.statusBarItem.text = `$(symbol-keyword) ${token}: ${definition.type}`;
                 } else {
@@ -242,23 +224,16 @@ class CTokenAnalyzer {
     }
 
     showDictionary() {
-        // Create and show a new webview panel
         const panel = vscode.window.createWebviewPanel(
             'cDictionary',
             'C Language Dictionary',
             vscode.ViewColumn.Two,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true
-            }
+            { enableScripts: true, retainContextWhenHidden: true }
         );
-
-        // Generate HTML content for the dictionary
         panel.webview.html = this.generateDictionaryHTML();
     }
 
     showTokenDefinition(token) {
-        // Find the token in the dictionary
         let tokenInfo = null;
         for (const section of C_DICTIONARY.sections) {
             for (const item of section.items) {
@@ -269,19 +244,13 @@ class CTokenAnalyzer {
             }
             if (tokenInfo) break;
         }
-
         if (tokenInfo) {
-            // Create a webview panel for this specific token
             const panel = vscode.window.createWebviewPanel(
                 'cTokenDefinition',
                 `${token} - C Definition`,
                 vscode.ViewColumn.Two,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true
-                }
+                { enableScripts: true, retainContextWhenHidden: true }
             );
-
             panel.webview.html = this.generateTokenDefinitionHTML(tokenInfo);
         } else {
             vscode.window.showInformationMessage(`Token "${token}" not found in dictionary.`);
@@ -297,116 +266,52 @@ class CTokenAnalyzer {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>C Language Dictionary</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
-            line-height: 1.6;
-        }
-        .header {
-            border-bottom: 1px solid var(--vscode-panel-border);
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-        .header h1 {
-            margin: 0;
-            color: var(--vscode-textLink-foreground);
-        }
-        .search-box {
-            margin: 20px 0;
-            padding: 10px;
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 4px;
-            background-color: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            width: 100%;
-            box-sizing: border-box;
-        }
-        .section {
-            margin-bottom: 40px;
-        }
-        .section-title {
-            font-size: 1.5em;
-            font-weight: bold;
-            margin-bottom: 15px;
-            color: var(--vscode-textLink-foreground);
-            border-bottom: 2px solid var(--vscode-textLink-foreground);
-            padding-bottom: 5px;
-        }
-        .token-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .token-item {
-            padding: 10px;
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .token-item:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        .token-name {
-            font-weight: bold;
-            color: var(--vscode-textLink-foreground);
-        }
-        .token-type {
-            font-size: 0.9em;
-            color: var(--vscode-descriptionForeground);
-            margin-top: 5px;
-        }
-        .token-description {
-            font-size: 0.85em;
-            margin-top: 8px;
-            color: var(--vscode-textPreformat-foreground);
-        }
-        .hidden {
-            display: none;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: var(--vscode-editor-background); color: var(--vscode-editor-foreground); line-height: 1.6; }
+        .header { border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 20px; margin-bottom: 30px; }
+        .header h1 { margin: 0; color: var(--vscode-textLink-foreground); }
+        .search-box { margin: 20px 0; padding: 10px; border: 1px solid var(--vscode-input-border); border-radius: 4px; background-color: var(--vscode-input-background); color: var(--vscode-input-foreground); width: 100%; box-sizing: border-box; }
+        .section { margin-bottom: 40px; }
+        .section-title { font-size: 1.5em; font-weight: bold; margin-bottom: 15px; color: var(--vscode-textLink-foreground); border-bottom: 2px solid var(--vscode-textLink-foreground); padding-bottom: 5px; }
+        .token-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .token-item { padding: 10px; border: 1px solid var(--vscode-panel-border); border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
+        .token-item:hover { background-color: var(--vscode-list-hoverBackground); }
+        .token-name { font-weight: bold; color: var(--vscode-textLink-foreground); }
+        .token-type { font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-top: 5px; }
+        .token-description { font-size: 0.85em; margin-top: 8px; color: var(--vscode-textPreformat-foreground); }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>📚 C Language Dictionary</h1>
-        <p>Complete reference for C keywords, operators, and standard library functions</p>
+        <h1>🔧 C Language Dictionary</h1>
+        <p>Reference for C keywords, operators, and standard library identifiers</p>
         <input type="text" class="search-box" placeholder="Search tokens..." id="searchBox">
     </div>
 `;
-
-        // Add sections
         for (const section of C_DICTIONARY.sections) {
             html += `
     <div class="section">
         <div class="section-title">${section.title}</div>
         <div class="token-grid">
 `;
-
             for (const item of section.items) {
                 html += `
-            <div class="token-item" onclick="showTokenDetail('${item.token}', '${item.type}', '${item.description.replace(/'/g, "\\'")}', '${item.example ? item.example.replace(/'/g, "\\'").replace(/\n/g, "\\n") : ""}')">
+            <div class="token-item" onclick="showTokenDetail('${item.token}', '${item.type}', '${(item.description || '').replace(/'/g, "\\'")}', '${item.example ? item.example.replace(/'/g, "\\'").replace(/\n/g, "\\n") : ""}')">
                 <div class="token-name">${item.token}</div>
                 <div class="token-type">${item.type}</div>
-                <div class="token-description">${item.description.substring(0, 100)}${item.description.length > 100 ? '...' : ''}</div>
+                <div class="token-description">${(item.description || '').substring(0, 100)}${(item.description || '').length > 100 ? '...' : ''}</div>
             </div>
 `;
             }
-
             html += `
         </div>
     </div>
 `;
         }
-
         html += `
     <script>
         const searchBox = document.getElementById('searchBox');
         const tokenItems = document.querySelectorAll('.token-item');
-        
         searchBox.addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase();
             tokenItems.forEach(item => {
@@ -419,61 +324,62 @@ class CTokenAnalyzer {
                 }
             });
         });
-        
         function showTokenDetail(token, type, description, example) {
+            // Create a modal-like display instead of alert
             const modal = document.createElement('div');
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; '
-                + 'background: rgba(0,0,0,0.8); z-index: 1000; display: flex; '
-                + 'align-items: center; justify-content: center; padding: 20px;';
-
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; ' +
+                'background: rgba(0,0,0,0.8); z-index: 1000; display: flex; ' +
+                'align-items: center; justify-content: center; padding: 20px;';
+            
             const content = document.createElement('div');
-            content.style.cssText = 'background: var(--vscode-editor-background); '
-                + 'border: 1px solid var(--vscode-panel-border); '
-                + 'border-radius: 8px; padding: 30px; max-width: 600px; '
-                + 'max-height: 80vh; overflow-y: auto; position: relative;';
-
+            content.style.cssText = 'background: var(--vscode-editor-background); ' +
+                'border: 1px solid var(--vscode-panel-border); ' +
+                'border-radius: 8px; padding: 30px; max-width: 600px; ' +
+                'max-height: 80vh; overflow-y: auto; position: relative;';
+            
             const closeBtn = document.createElement('button');
             closeBtn.innerHTML = '×';
-            closeBtn.style.cssText = 'position: absolute; top: 10px; right: 15px; '
-                + 'background: none; border: none; font-size: 24px; '
-                + 'color: var(--vscode-editor-foreground); cursor: pointer;';
+            closeBtn.style.cssText = 'position: absolute; top: 10px; right: 15px; ' +
+                'background: none; border: none; font-size: 24px; ' +
+                'color: var(--vscode-editor-foreground); cursor: pointer;';
             closeBtn.onclick = () => document.body.removeChild(modal);
-
+            
             const title = document.createElement('h2');
             title.style.cssText = 'margin: 0 0 15px 0; color: var(--vscode-textLink-foreground);';
             title.textContent = token;
-
+            
             const typeEl = document.createElement('div');
             typeEl.style.cssText = 'color: var(--vscode-descriptionForeground); margin-bottom: 20px; font-size: 1.1em;';
             typeEl.textContent = type;
-
+            
             const descEl = document.createElement('div');
             descEl.style.cssText = 'margin-bottom: 20px; line-height: 1.6;';
             descEl.textContent = description;
-
+            
             content.appendChild(closeBtn);
             content.appendChild(title);
             content.appendChild(typeEl);
             content.appendChild(descEl);
-
+            
             if (example) {
                 const exampleTitle = document.createElement('h3');
                 exampleTitle.style.cssText = 'color: var(--vscode-textLink-foreground); margin: 20px 0 10px 0;';
                 exampleTitle.textContent = 'Example:';
-
+                
                 const exampleEl = document.createElement('pre');
-                exampleEl.style.cssText = 'background: var(--vscode-textCodeBlock-background); '
-                    + 'padding: 15px; border-radius: 4px; overflow-x: auto; '
-                    + 'border: 1px solid var(--vscode-panel-border);';
+                exampleEl.style.cssText = 'background: var(--vscode-textCodeBlock-background); ' +
+                    'padding: 15px; border-radius: 4px; overflow-x: auto; ' +
+                    'border: 1px solid var(--vscode-panel-border);';
                 exampleEl.textContent = example;
-
+                
                 content.appendChild(exampleTitle);
                 content.appendChild(exampleEl);
             }
-
+            
             modal.appendChild(content);
             document.body.appendChild(modal);
-
+            
+            // Close on background click
             modal.onclick = (e) => {
                 if (e.target === modal) {
                     document.body.removeChild(modal);
@@ -484,7 +390,6 @@ class CTokenAnalyzer {
 </body>
 </html>
 `;
-
         return html;
     }
 
@@ -497,55 +402,15 @@ class CTokenAnalyzer {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${tokenInfo.token} - C Definition</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 30px;
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
-            line-height: 1.6;
-        }
-        .header {
-            border-bottom: 2px solid var(--vscode-textLink-foreground);
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-        .token-name {
-            font-size: 2.5em;
-            font-weight: bold;
-            color: var(--vscode-textLink-foreground);
-            margin: 0;
-        }
-        .token-type {
-            font-size: 1.2em;
-            color: var(--vscode-descriptionForeground);
-            margin-top: 10px;
-        }
-        .description {
-            font-size: 1.1em;
-            margin: 30px 0;
-            padding: 20px;
-            background-color: var(--vscode-textBlockQuote-background);
-            border-left: 4px solid var(--vscode-textLink-foreground);
-        }
-        .example {
-            margin-top: 30px;
-        }
-        .example h3 {
-            color: var(--vscode-textLink-foreground);
-            margin-bottom: 15px;
-        }
-        pre {
-            background-color: var(--vscode-textCodeBlock-background);
-            padding: 20px;
-            border-radius: 4px;
-            overflow-x: auto;
-            border: 1px solid var(--vscode-panel-border);
-        }
-        code {
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.9em;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 30px; background-color: var(--vscode-editor-background); color: var(--vscode-editor-foreground); line-height: 1.6; }
+        .header { border-bottom: 2px solid var(--vscode-textLink-foreground); padding-bottom: 20px; margin-bottom: 30px; }
+        .token-name { font-size: 2.5em; font-weight: bold; color: var(--vscode-textLink-foreground); margin: 0; }
+        .token-type { font-size: 1.2em; color: var(--vscode-descriptionForeground); margin-top: 10px; }
+        .description { font-size: 1.1em; margin: 30px 0; padding: 20px; background-color: var(--vscode-textBlockQuote-background); border-left: 4px solid var(--vscode-textLink-foreground); }
+        .example { margin-top: 30px; }
+        .example h3 { color: var(--vscode-textLink-foreground); margin-bottom: 15px; }
+        pre { background-color: var(--vscode-textCodeBlock-background); padding: 20px; border-radius: 4px; overflow-x: auto; border: 1px solid var(--vscode-panel-border); }
+        code { font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 0.9em; }
     </style>
 </head>
 <body>
@@ -553,19 +418,16 @@ class CTokenAnalyzer {
         <h1 class="token-name">${tokenInfo.token}</h1>
         <div class="token-type">${tokenInfo.type}</div>
     </div>
-    
     <div class="description">
         <strong>Description:</strong><br>
-        ${tokenInfo.description}
+        ${tokenInfo.description || ''}
     </div>
-    
     ${tokenInfo.example ? `
     <div class="example">
         <h3>Example:</h3>
         <pre><code>${tokenInfo.example}</code></pre>
     </div>
     ` : ''}
-    
     <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--vscode-panel-border);">
         <p><em>From the C Language Dictionary - ${C_DICTIONARY.title}</em></p>
     </div>
@@ -581,7 +443,6 @@ function activate(context) {
 }
 
 function deactivate() {
-    // Cleanup
     if (analyzer) {
         analyzer = null;
     }
@@ -605,27 +466,20 @@ class TokenAnalysisProvider {
 
     getChildren(element) {
         if (!element) {
-            // Return root items - group tokens by type
             const groups = {};
             this.tokens.forEach(token => {
-                if (!groups[token.type]) {
-                    groups[token.type] = [];
-                }
+                if (!groups[token.type]) groups[token.type] = [];
                 groups[token.type].push(token);
             });
-
             const rootItems = [];
             for (const [type, tokens] of Object.entries(groups)) {
                 rootItems.push(new TokenGroupItem(type, tokens.length));
             }
-            
             return rootItems.sort((a, b) => a.label.localeCompare(b.label));
         } else if (element instanceof TokenGroupItem) {
-            // Return tokens in this group
             const groupTokens = this.tokens.filter(token => token.type === element.type);
             return groupTokens.map(token => new TokenItem(token));
         }
-        
         return [];
     }
 }
@@ -636,26 +490,14 @@ class TokenGroupItem extends vscode.TreeItem {
         this.type = type;
         this.description = `${count} tokens`;
         this.contextValue = 'tokenGroup';
-        
-        // Set appropriate icons
         switch (type) {
-            case 'keyword':
-                this.iconPath = new vscode.ThemeIcon('symbol-keyword');
-                break;
-            case 'operator':
-                this.iconPath = new vscode.ThemeIcon('symbol-operator');
-                break;
-            case 'identifier':
-                this.iconPath = new vscode.ThemeIcon('symbol-variable');
-                break;
-            case 'literal':
-                this.iconPath = new vscode.ThemeIcon('symbol-numeric');
-                break;
-            case 'string':
-                this.iconPath = new vscode.ThemeIcon('symbol-string');
-                break;
-            default:
-                this.iconPath = new vscode.ThemeIcon('symbol-misc');
+            case 'keyword': this.iconPath = new vscode.ThemeIcon('symbol-keyword'); break;
+            case 'operator': this.iconPath = new vscode.ThemeIcon('symbol-operator'); break;
+            case 'builtin': this.iconPath = new vscode.ThemeIcon('symbol-function'); break;
+            case 'identifier': this.iconPath = new vscode.ThemeIcon('symbol-variable'); break;
+            case 'literal': this.iconPath = new vscode.ThemeIcon('symbol-numeric'); break;
+            case 'string': this.iconPath = new vscode.ThemeIcon('symbol-string'); break;
+            default: this.iconPath = new vscode.ThemeIcon('symbol-misc');
         }
     }
 }
@@ -664,382 +506,28 @@ class TokenItem extends vscode.TreeItem {
     constructor(tokenInfo) {
         super(tokenInfo.token, vscode.TreeItemCollapsibleState.None);
         this.tokenInfo = tokenInfo;
-        
-        // Set description with position
         const line = tokenInfo.position.line + 1;
         const col = tokenInfo.position.character + 1;
         this.description = `L${line}:C${col}`;
-        
-        // Set tooltip with description
         this.tooltip = tokenInfo.description;
-        
-        // Set context value for commands
         this.contextValue = 'token';
-        
-        // Set appropriate icons
         switch (tokenInfo.type) {
-            case 'keyword':
-                this.iconPath = new vscode.ThemeIcon('symbol-keyword');
-                break;
-            case 'operator':
-                this.iconPath = new vscode.ThemeIcon('symbol-operator');
-                break;
-            case 'identifier':
-                this.iconPath = new vscode.ThemeIcon('symbol-variable');
-                break;
-            case 'literal':
-                this.iconPath = new vscode.ThemeIcon('symbol-numeric');
-                break;
-            case 'string':
-                this.iconPath = new vscode.ThemeIcon('symbol-string');
-                break;
-            default:
-                this.iconPath = new vscode.ThemeIcon('symbol-misc');
+            case 'keyword': this.iconPath = new vscode.ThemeIcon('symbol-keyword'); break;
+            case 'operator': this.iconPath = new vscode.ThemeIcon('symbol-operator'); break;
+            case 'builtin': this.iconPath = new vscode.ThemeIcon('symbol-function'); break;
+            case 'identifier': this.iconPath = new vscode.ThemeIcon('symbol-variable'); break;
+            case 'literal': this.iconPath = new vscode.ThemeIcon('symbol-numeric'); break;
+            case 'string': this.iconPath = new vscode.ThemeIcon('symbol-string'); break;
+            default: this.iconPath = new vscode.ThemeIcon('symbol-misc');
         }
-        
-        // Add command to jump to token location
         this.command = {
             command: 'c-token-analyzer.showTokenDefinition',
             title: 'Show Token Definition',
             arguments: [tokenInfo.token]
         };
     }
-
-    showDictionary() {
-        // Create and show a new webview panel
-        const panel = vscode.window.createWebviewPanel(
-            'cDictionary',
-            'C Language Dictionary',
-            vscode.ViewColumn.Two,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true
-            }
-        );
-
-        // Generate HTML content for the dictionary
-        panel.webview.html = this.generateDictionaryHTML();
-    }
-
-    showTokenDefinition(token) {
-        // Find the token in the dictionary
-        let tokenInfo = null;
-        for (const section of C_DICTIONARY.sections) {
-            for (const item of section.items) {
-                if (item.token === token) {
-                    tokenInfo = item;
-                    break;
-                }
-            }
-            if (tokenInfo) break;
-        }
-
-        if (tokenInfo) {
-            // Create a webview panel for this specific token
-            const panel = vscode.window.createWebviewPanel(
-                'cTokenDefinition',
-                `${token} - C Definition`,
-                vscode.ViewColumn.Two,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true
-                }
-            );
-
-            panel.webview.html = this.generateTokenDefinitionHTML(tokenInfo);
-        } else {
-            vscode.window.showInformationMessage(`Token "${token}" not found in dictionary.`);
-        }
-    }
-
-    generateDictionaryHTML() {
-        let html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>C Language Dictionary</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
-            line-height: 1.6;
-        }
-        .header {
-            border-bottom: 1px solid var(--vscode-panel-border);
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-        .header h1 {
-            margin: 0;
-            color: var(--vscode-textLink-foreground);
-        }
-        .search-box {
-            margin: 20px 0;
-            padding: 10px;
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 4px;
-            background-color: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            width: 100%;
-            box-sizing: border-box;
-        }
-        .section {
-            margin-bottom: 40px;
-        }
-        .section-title {
-            font-size: 1.5em;
-            font-weight: bold;
-            margin-bottom: 15px;
-            color: var(--vscode-textLink-foreground);
-            border-bottom: 2px solid var(--vscode-textLink-foreground);
-            padding-bottom: 5px;
-        }
-        .token-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .token-item {
-            padding: 10px;
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .token-item:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        .token-name {
-            font-weight: bold;
-            color: var(--vscode-textLink-foreground);
-        }
-        .token-type {
-            font-size: 0.9em;
-            color: var(--vscode-descriptionForeground);
-            margin-top: 5px;
-        }
-        .token-description {
-            font-size: 0.85em;
-            margin-top: 8px;
-            color: var(--vscode-textPreformat-foreground);
-        }
-        .hidden {
-            display: none;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>📚 C Language Dictionary</h1>
-        <p>Complete reference for C keywords, operators, and standard library functions</p>
-        <input type="text" class="search-box" placeholder="Search tokens..." id="searchBox">
-    </div>
-`;
-
-        // Add sections
-        for (const section of C_DICTIONARY.sections) {
-            html += `
-    <div class="section">
-        <div class="section-title">${section.title}</div>
-        <div class="token-grid">
-`;
-
-            for (const item of section.items) {
-                html += `
-            <div class="token-item" onclick="showTokenDetail('${item.token}', '${item.type}', '${item.description.replace(/'/g, "\\'")}', '${item.example ? item.example.replace(/'/g, "\\'").replace(/\n/g, "\\n") : ""}')">
-                <div class="token-name">${item.token}</div>
-                <div class="token-type">${item.type}</div>
-                <div class="token-description">${item.description.substring(0, 100)}${item.description.length > 100 ? '...' : ''}</div>
-            </div>
-`;
-            }
-
-            html += `
-        </div>
-    </div>
-`;
-        }
-
-        html += `
-    <script>
-        const searchBox = document.getElementById('searchBox');
-        const tokenItems = document.querySelectorAll('.token-item');
-        
-        searchBox.addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            tokenItems.forEach(item => {
-                const tokenName = item.querySelector('.token-name').textContent.toLowerCase();
-                const tokenDesc = item.querySelector('.token-description').textContent.toLowerCase();
-                if (tokenName.includes(searchTerm) || tokenDesc.includes(searchTerm)) {
-                    item.classList.remove('hidden');
-                } else {
-                    item.classList.add('hidden');
-                }
-            });
-        });
-        
-        function showTokenDetail(token, type, description, example) {
-            const modal = document.createElement('div');
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; '
-                + 'background: rgba(0,0,0,0.8); z-index: 1000; display: flex; '
-                + 'align-items: center; justify-content: center; padding: 20px;';
-
-            const content = document.createElement('div');
-            content.style.cssText = 'background: var(--vscode-editor-background); '
-                + 'border: 1px solid var(--vscode-panel-border); '
-                + 'border-radius: 8px; padding: 30px; max-width: 600px; '
-                + 'max-height: 80vh; overflow-y: auto; position: relative;';
-
-            const closeBtn = document.createElement('button');
-            closeBtn.innerHTML = '×';
-            closeBtn.style.cssText = 'position: absolute; top: 10px; right: 15px; '
-                + 'background: none; border: none; font-size: 24px; '
-                + 'color: var(--vscode-editor-foreground); cursor: pointer;';
-            closeBtn.onclick = () => document.body.removeChild(modal);
-
-            const title = document.createElement('h2');
-            title.style.cssText = 'margin: 0 0 15px 0; color: var(--vscode-textLink-foreground);';
-            title.textContent = token;
-
-            const typeEl = document.createElement('div');
-            typeEl.style.cssText = 'color: var(--vscode-descriptionForeground); margin-bottom: 20px; font-size: 1.1em;';
-            typeEl.textContent = type;
-
-            const descEl = document.createElement('div');
-            descEl.style.cssText = 'margin-bottom: 20px; line-height: 1.6;';
-            descEl.textContent = description;
-
-            content.appendChild(closeBtn);
-            content.appendChild(title);
-            content.appendChild(typeEl);
-            content.appendChild(descEl);
-
-            if (example) {
-                const exampleTitle = document.createElement('h3');
-                exampleTitle.style.cssText = 'color: var(--vscode-textLink-foreground); margin: 20px 0 10px 0;';
-                exampleTitle.textContent = 'Example:';
-
-                const exampleEl = document.createElement('pre');
-                exampleEl.style.cssText = 'background: var(--vscode-textCodeBlock-background); '
-                    + 'padding: 15px; border-radius: 4px; overflow-x: auto; '
-                    + 'border: 1px solid var(--vscode-panel-border);';
-                exampleEl.textContent = example;
-
-                content.appendChild(exampleTitle);
-                content.appendChild(exampleEl);
-            }
-
-            modal.appendChild(content);
-            document.body.appendChild(modal);
-
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    document.body.removeChild(modal);
-                }
-            };
-        }
-    </script>
-</body>
-</html>
-`;
-
-        return html;
-    }
-
-    generateTokenDefinitionHTML(tokenInfo) {
-        return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${tokenInfo.token} - C Definition</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 30px;
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
-            line-height: 1.6;
-        }
-        .header {
-            border-bottom: 2px solid var(--vscode-textLink-foreground);
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-        .token-name {
-            font-size: 2.5em;
-            font-weight: bold;
-            color: var(--vscode-textLink-foreground);
-            margin: 0;
-        }
-        .token-type {
-            font-size: 1.2em;
-            color: var(--vscode-descriptionForeground);
-            margin-top: 10px;
-        }
-        .description {
-            font-size: 1.1em;
-            margin: 30px 0;
-            padding: 20px;
-            background-color: var(--vscode-textBlockQuote-background);
-            border-left: 4px solid var(--vscode-textLink-foreground);
-        }
-        .example {
-            margin-top: 30px;
-        }
-        .example h3 {
-            color: var(--vscode-textLink-foreground);
-            margin-bottom: 15px;
-        }
-        pre {
-            background-color: var(--vscode-textCodeBlock-background);
-            padding: 20px;
-            border-radius: 4px;
-            overflow-x: auto;
-            border: 1px solid var(--vscode-panel-border);
-        }
-        code {
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.9em;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1 class="token-name">${tokenInfo.token}</h1>
-        <div class="token-type">${tokenInfo.type}</div>
-    </div>
-    
-    <div class="description">
-        <strong>Description:</strong><br>
-        ${tokenInfo.description}
-    </div>
-    
-    ${tokenInfo.example ? `
-    <div class="example">
-        <h3>Example:</h3>
-        <pre><code>${tokenInfo.example}</code></pre>
-    </div>
-    ` : ''}
-    
-    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--vscode-panel-border);">
-        <p><em>From the C Language Dictionary - ${C_DICTIONARY.title}</em></p>
-    </div>
-</body>
-</html>
-`;
-    }
 }
 
-module.exports = {
-    activate,
-    deactivate
-};
+module.exports = { activate, deactivate };
+
+

@@ -12,3 +12,9 @@
 node_modules/
 
 .vscode
+
+debug/
+
+reference/
+
+__pycache__/

@@ -50,12 +50,25 @@ def detect_section_type(line: str, state: Dict[str, str]) -> None:
     if text.startswith('### standard library identifiers'):
         state['current_type'] = SectionType.IDENTIFIER
         return
+    # Detect per-item anchors used before each token section
+    t = line.strip()
+    if t.startswith('<a id="kw-'):
+        state['current_type'] = SectionType.KEYWORD
+        return
+    if t.startswith('<a id="op-'):
+        state['current_type'] = SectionType.OPERATOR
+        return
+    if t.startswith('<a id="id-'):
+        state['current_type'] = SectionType.IDENTIFIER
+        return
 
 
-def parse_items(md_text: str) -> List[Dict[str, Optional[str]]]:
+def parse_items(md_text: str) -> Tuple[List[Dict[str, Optional[str]]], List[str]]:
     lines = md_text.splitlines()
     state: Dict[str, str] = { 'current_type': SectionType.NONE }
     items: List[Dict[str, Optional[str]]] = []
+    auto_filled: List[str] = []
+    debug_info: List[str] = []
 
     i = 0
     n = len(lines)
@@ -67,6 +80,11 @@ def parse_items(md_text: str) -> List[Dict[str, Optional[str]]]:
         if m and state['current_type'] in (SectionType.KEYWORD, SectionType.IDENTIFIER, SectionType.OPERATOR):
             token_name_raw = m.group(1)
             token_name = normalize_token(token_name_raw)
+
+            # Skip section headers that aren't real tokens
+            if token_name in ['Entries', 'Keywords', 'Operators', 'Standard Library Identifiers', 'Table of Contents']:
+                i += 1
+                continue
 
             description = ''
             example = ''
@@ -82,12 +100,18 @@ def parse_items(md_text: str) -> List[Dict[str, Optional[str]]]:
                     j += 1
                     if j < n and lines[j].strip().startswith('---'):
                         j += 1
-                    # Accumulate description
+                    # Accumulate description (keep blank lines). Stop at Example:, next heading, or next anchor.
                     while j < n:
-                        t = lines[j]
-                        if t.strip() == '' or t.strip().lower().startswith('example:') or HEADING_ITEM_RE.match(t):
+                        tline = lines[j]
+                        if (tline.strip().lower().startswith('example:') or 
+                            HEADING_ITEM_RE.match(tline) or 
+                            tline.strip().startswith('<a id="')):
                             break
-                        description += (('\n' if description else '') + t.rstrip())
+                        # Stop at standalone --- (but not the first one after _Description:_)
+                        if tline.strip() == '---' and j > i + 4:
+                            break
+                        # Add all lines to description (including empty ones for formatting)
+                        description += (('\n' if description else '') + tline.rstrip())
                         j += 1
                     break
                 if HEADING_ITEM_RE.match(s):
@@ -95,9 +119,9 @@ def parse_items(md_text: str) -> List[Dict[str, Optional[str]]]:
                 detect_section_type(s, state)
                 j += 1
 
-            # Find example block following 'Example:' label
+            # Find example block following 'Example:' label. If none, try a fallback fenced block.
             while j < n and not lines[j].strip().lower().startswith('example:'):
-                if HEADING_ITEM_RE.match(lines[j]):
+                if HEADING_ITEM_RE.match(lines[j]) or lines[j].strip().startswith('<a id="'):
                     break
                 j += 1
             if j < n and lines[j].strip().lower().startswith('example:'):
@@ -115,22 +139,48 @@ def parse_items(md_text: str) -> List[Dict[str, Optional[str]]]:
                     if j < n and lines[j].strip().startswith('```'):
                         j += 1
                     example = '\n'.join(code_lines).rstrip()
+            else:
+                # Fallback: capture first fenced code block immediately after heading if present
+                jj = i + 1
+                while jj < n and lines[jj].strip() == '':
+                    jj += 1
+                if jj < n and lines[jj].strip().startswith('```'):
+                    jj += 1
+                    code_lines: List[str] = []
+                    while jj < n and not lines[jj].strip().startswith('```'):
+                        code_lines.append(lines[jj].rstrip())
+                        jj += 1
+                    example = '\n'.join(code_lines).rstrip()
 
-            if found_description:
-                item_type = state['current_type']
-                items.append({
-                    'token': token_name,
-                    'type': item_type,
-                    'description': description.strip(),
-                    'example': example.strip() if example else ''
-                })
+            # Always include the item; if no description was found, create a minimal one
+            item_type = state['current_type']
+            desc_text = (description or '').strip()
+            if not desc_text:
+                if item_type == SectionType.KEYWORD:
+                    desc_text = f"{token_name} keyword in C."
+                elif item_type == SectionType.OPERATOR:
+                    desc_text = f"Operator {token_name}."
+                else:
+                    desc_text = f"Standard library identifier {token_name}."
+                auto_filled.append(token_name)
+            
+            # Debug: Track parsing failures
+            if not found_description or not description.strip():
+                debug_info.append(f"PARSING_FAILURE: {token_name} - found_desc:{found_description}, desc_len:{len(description.strip())}")
+            
+            items.append({
+                'token': token_name,
+                'type': item_type,
+                'description': desc_text,
+                'example': (example or '').strip()
+            })
 
             i = j
             continue
 
         i += 1
 
-    return items
+    return items, auto_filled
 
 
 def merge_items(items: List[Dict[str, Optional[str]]]) -> Dict[str, Dict[str, Optional[str]]]:
@@ -226,7 +276,7 @@ def main():
     args = parser.parse_args()
 
     md = read_file(args.source)
-    raw_items = parse_items(md)
+    raw_items, auto_filled = parse_items(md)
     merged = merge_items(raw_items)
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -240,6 +290,20 @@ def main():
 
     print(f"Wrote {builtins_path}")
     print(f"Wrote {dictionary_path}")
+    # Debug logs
+    counts = { 'keyword': 0, 'operator': 0, 'identifier': 0 }
+    for it in raw_items:
+        t = it.get('type') or 'identifier'
+        counts[t] = counts.get(t, 0) + 1
+    print(f"Parsed counts: {counts}")
+    print(f"Auto-filled descriptions: {len(auto_filled)}")
+    if auto_filled:
+        dbg_path = os.path.join(args.out_dir, 'generation_debug.txt')
+        with open(dbg_path, 'w', encoding='utf-8') as df:
+            df.write('Auto-filled description tokens (no formal _Description_ block found)\n\n')
+            for tok in sorted(auto_filled, key=str.lower):
+                df.write(f"- {tok}\n")
+        print(f"Wrote debug: {dbg_path}")
 
 
 if __name__ == '__main__':
