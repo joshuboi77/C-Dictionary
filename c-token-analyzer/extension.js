@@ -421,7 +421,64 @@ class CTokenAnalyzer {
         });
         
         function showTokenDetail(token, type, description, example) {
-            alert('Token: ' + token + '\\n\\n' + description);
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; '
+                + 'background: rgba(0,0,0,0.8); z-index: 1000; display: flex; '
+                + 'align-items: center; justify-content: center; padding: 20px;';
+
+            const content = document.createElement('div');
+            content.style.cssText = 'background: var(--vscode-editor-background); '
+                + 'border: 1px solid var(--vscode-panel-border); '
+                + 'border-radius: 8px; padding: 30px; max-width: 600px; '
+                + 'max-height: 80vh; overflow-y: auto; position: relative;';
+
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '×';
+            closeBtn.style.cssText = 'position: absolute; top: 10px; right: 15px; '
+                + 'background: none; border: none; font-size: 24px; '
+                + 'color: var(--vscode-editor-foreground); cursor: pointer;';
+            closeBtn.onclick = () => document.body.removeChild(modal);
+
+            const title = document.createElement('h2');
+            title.style.cssText = 'margin: 0 0 15px 0; color: var(--vscode-textLink-foreground);';
+            title.textContent = token;
+
+            const typeEl = document.createElement('div');
+            typeEl.style.cssText = 'color: var(--vscode-descriptionForeground); margin-bottom: 20px; font-size: 1.1em;';
+            typeEl.textContent = type;
+
+            const descEl = document.createElement('div');
+            descEl.style.cssText = 'margin-bottom: 20px; line-height: 1.6;';
+            descEl.textContent = description;
+
+            content.appendChild(closeBtn);
+            content.appendChild(title);
+            content.appendChild(typeEl);
+            content.appendChild(descEl);
+
+            if (example) {
+                const exampleTitle = document.createElement('h3');
+                exampleTitle.style.cssText = 'color: var(--vscode-textLink-foreground); margin: 20px 0 10px 0;';
+                exampleTitle.textContent = 'Example:';
+
+                const exampleEl = document.createElement('pre');
+                exampleEl.style.cssText = 'background: var(--vscode-textCodeBlock-background); '
+                    + 'padding: 15px; border-radius: 4px; overflow-x: auto; '
+                    + 'border: 1px solid var(--vscode-panel-border);';
+                exampleEl.textContent = example;
+
+                content.appendChild(exampleTitle);
+                content.appendChild(exampleEl);
+            }
+
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            };
         }
     </script>
 </body>
@@ -828,7 +885,64 @@ class TokenItem extends vscode.TreeItem {
         });
         
         function showTokenDetail(token, type, description, example) {
-            alert('Token: ' + token + '\\n\\n' + description);
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; '
+                + 'background: rgba(0,0,0,0.8); z-index: 1000; display: flex; '
+                + 'align-items: center; justify-content: center; padding: 20px;';
+
+            const content = document.createElement('div');
+            content.style.cssText = 'background: var(--vscode-editor-background); '
+                + 'border: 1px solid var(--vscode-panel-border); '
+                + 'border-radius: 8px; padding: 30px; max-width: 600px; '
+                + 'max-height: 80vh; overflow-y: auto; position: relative;';
+
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '×';
+            closeBtn.style.cssText = 'position: absolute; top: 10px; right: 15px; '
+                + 'background: none; border: none; font-size: 24px; '
+                + 'color: var(--vscode-editor-foreground); cursor: pointer;';
+            closeBtn.onclick = () => document.body.removeChild(modal);
+
+            const title = document.createElement('h2');
+            title.style.cssText = 'margin: 0 0 15px 0; color: var(--vscode-textLink-foreground);';
+            title.textContent = token;
+
+            const typeEl = document.createElement('div');
+            typeEl.style.cssText = 'color: var(--vscode-descriptionForeground); margin-bottom: 20px; font-size: 1.1em;';
+            typeEl.textContent = type;
+
+            const descEl = document.createElement('div');
+            descEl.style.cssText = 'margin-bottom: 20px; line-height: 1.6;';
+            descEl.textContent = description;
+
+            content.appendChild(closeBtn);
+            content.appendChild(title);
+            content.appendChild(typeEl);
+            content.appendChild(descEl);
+
+            if (example) {
+                const exampleTitle = document.createElement('h3');
+                exampleTitle.style.cssText = 'color: var(--vscode-textLink-foreground); margin: 20px 0 10px 0;';
+                exampleTitle.textContent = 'Example:';
+
+                const exampleEl = document.createElement('pre');
+                exampleEl.style.cssText = 'background: var(--vscode-textCodeBlock-background); '
+                    + 'padding: 15px; border-radius: 4px; overflow-x: auto; '
+                    + 'border: 1px solid var(--vscode-panel-border);';
+                exampleEl.textContent = example;
+
+                content.appendChild(exampleTitle);
+                content.appendChild(exampleEl);
+            }
+
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            };
         }
     </script>
 </body>

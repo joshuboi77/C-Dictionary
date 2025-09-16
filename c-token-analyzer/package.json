@@ -3,6 +3,7 @@
   "displayName": "C Token Analyzer",
   "description": "Live C token analysis with definitions from your comprehensive C dictionary",
   "version": "0.0.1",
+  "publisher": "local-dev",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -46,6 +47,20 @@
           "when": "editorLangId == c",
           "command": "c-token-analyzer.showTokenInfo",
           "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "c-token-analyzer.analyzeFile",
+          "when": "view == c-token-analyzer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "when": "view == c-token-analyzer && viewItem == token",
+          "command": "c-token-analyzer.showTokenDefinition",
+          "group": "inline"
         }
       ]
     },

@@ -34,23 +34,38 @@ A VSCode extension that provides live C token analysis with definitions from you
 
 ## Installation
 
+### Option A: Manual (quickest)
+
 1. Copy the `c-token-analyzer` folder to your VSCode extensions directory:
    - Windows: `%USERPROFILE%\.vscode\extensions\`
    - macOS: `~/.vscode/extensions/`
    - Linux: `~/.vscode/extensions/`
+2. Optionally rename to include version, e.g. `c-token-analyzer-0.0.1`
+3. Reload VS Code window (`Ctrl+Shift+P` → "Developer: Reload Window")
+4. Open a C file to activate the extension
 
-2. Restart VSCode or reload the window (`Ctrl+Shift+P` → "Developer: Reload Window")
+### Option B: Package a VSIX (requires Node.js and `vsce`)
 
-3. Open a C file to activate the extension
+1. Install vsce: `npm i -g @vscode/vsce`
+2. Package:
+   ```bash
+   cd c-token-analyzer
+   vsce package --allow-missing-repository --skip-license
+   ```
+3. Install the generated `.vsix`:
+   - All platforms: `code --install-extension <file>.vsix`
 
 ## Development
 
-To modify or extend the extension:
+To modify or regenerate the embedded dictionary files:
 
-1. Open the extension folder in VSCode
-2. Edit `extension.js` directly (no compilation needed)
-3. Reinstall using `./install_extension.sh`
-4. Reload VSCode window to see changes
+1. Generate the C dictionary JS outputs from `C_Dictionary.md`:
+   ```bash
+   # From repository root
+   python generate_c_dictionary_js.py --source C_Dictionary.md --out-dir c-token-analyzer
+   ```
+2. Edit `c-token-analyzer/extension.js` or `package.json` as needed
+3. Reload VS Code window to see changes
 
 ## Features in Detail
 
